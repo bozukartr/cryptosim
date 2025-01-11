@@ -25,6 +25,9 @@
                 <div class="me-4">
                     <i class="bi bi-wallet2 text-warning me-2"></i>
                     <span id="userBalance" class="text-light">100,000 USD</span>
+                    <button id="resetBtn" class="btn btn-sm btn-outline-warning ms-2">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
                 </div>
                 <div id="userProfile" class="d-none d-flex align-items-center">
                     <img id="userPhoto" class="rounded-circle mx-2" width="32" height="32">
@@ -78,11 +81,11 @@
                                 <form id="buyForm">
                                     <div class="mb-3">
                                         <div class="input-group mb-2">
-                                            <input type="number" class="form-control" id="buyUSDT" placeholder="USDT Miktarı">
+                                            <input type="number" class="form-control" id="buyUSDT" placeholder="USDT Miktarı" step="0.01" min="0">
                                             <span class="input-group-text">USDT</span>
                                         </div>
                                         <div class="input-group">
-                                            <input type="number" class="form-control" id="buyCoin" placeholder="Coin Miktarı">
+                                            <input type="number" class="form-control" id="buyCoin" placeholder="Coin Miktarı" step="0.00000001" min="0">
                                             <span class="input-group-text coin-symbol">BTC</span>
                                         </div>
                                     </div>
@@ -96,11 +99,11 @@
                                 <form id="sellForm">
                                     <div class="mb-3">
                                         <div class="input-group mb-2">
-                                            <input type="number" class="form-control" id="sellCoin" placeholder="Coin Miktarı">
+                                            <input type="number" class="form-control" id="sellCoin" placeholder="Coin Miktarı" step="0.00000001" min="0">
                                             <span class="input-group-text coin-symbol">BTC</span>
                                         </div>
                                         <div class="input-group">
-                                            <input type="number" class="form-control" id="sellUSDT" placeholder="USDT Miktarı">
+                                            <input type="number" class="form-control" id="sellUSDT" placeholder="USDT Miktarı" step="0.01" min="0">
                                             <span class="input-group-text">USDT</span>
                                         </div>
                                     </div>

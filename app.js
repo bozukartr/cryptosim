@@ -3,6 +3,7 @@ const userProfile = document.getElementById('userProfile');
 const userPhoto = document.getElementById('userPhoto');
 const userName = document.getElementById('userName');
 const userBalance = document.getElementById('userBalance');
+const resetBtn = document.getElementById('resetBtn');
 const marketOverview = document.getElementById('marketOverview');
 const portfolio = document.getElementById('portfolio');
 const tradingChart = document.getElementById('tradingChart');
@@ -72,13 +73,61 @@ const sellUSDT = document.getElementById('sellUSDT');
 const sellCoin = document.getElementById('sellCoin');
 const coinSymbolElements = document.querySelectorAll('.coin-symbol');
 
+// Para formatı için yardımcı fonksiyon
+function formatCurrency(number) {
+    return number.toLocaleString('tr-TR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// Reset butonu işlemleri
+resetBtn.addEventListener('click', async () => {
+    Swal.fire({
+        title: 'Bakiyeyi sıfırlamak istediğinize emin misiniz?',
+        text: 'Bu işlem bakiyenizi 100.000 USDT yapacak ve portföyünüzü temizleyecektir.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Evet, sıfırla',
+        cancelButtonText: 'İptal',
+        confirmButtonColor: '#f3ba2f',
+        cancelButtonColor: '#718096'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const db = firebase.firestore();
+                await db.collection('users').doc(currentUser.uid).set({
+                    balance: 100000,
+                    portfolio: {},
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Bakiye Sıfırlandı',
+                    text: 'Bakiyeniz 100.000 USDT olarak güncellendi.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
+                loadUserPortfolio();
+            } catch (error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Hata',
+                    text: 'Bakiye sıfırlanırken bir hata oluştu.'
+                });
+            }
+        }
+    });
+});
+
 // Kullanıcı portföyünü yükle
 async function loadUserPortfolio() {
     const db = firebase.firestore();
     const userDoc = await db.collection('users').doc(currentUser.uid).get();
     
     if (!userDoc.exists) {
-        // Yeni kullanıcı için başlangıç portföyü oluştur
         await db.collection('users').doc(currentUser.uid).set({
             balance: 100000,
             portfolio: {},
@@ -88,7 +137,7 @@ async function loadUserPortfolio() {
     } else {
         const userData = userDoc.data();
         userPortfolio = userData.portfolio || {};
-        userBalance.textContent = `${userData.balance.toFixed(2)} USD`;
+        userBalance.textContent = `${formatCurrency(userData.balance)} USD`;
     }
     updatePortfolioDisplay();
 }
@@ -109,14 +158,14 @@ async function updatePrices() {
             currentPrices[symbol] = price;
             
             if (pair.symbol === selectedPair) {
-                currentPrice = price; // Seçili coin için fiyat güncelleme
+                currentPrice = price;
             }
             
             marketOverviewHTML += `
                 <div class="crypto-item ${symbol === selectedCoin ? 'active' : ''}" data-symbol="${symbol}" data-pair="${pair.symbol}">
                     <span>${COIN_NAMES[symbol]} (${symbol})</span>
                     <div class="text-end">
-                        <div>${price.toFixed(2)} USD</div>
+                        <div>${formatCurrency(price)} USD</div>
                         <div class="${change >= 0 ? 'price-up' : 'price-down'}">
                             ${change >= 0 ? '+' : ''}${change.toFixed(2)}%
                         </div>
@@ -128,7 +177,6 @@ async function updatePrices() {
         marketOverview.innerHTML = marketOverviewHTML;
         updatePortfolioDisplay();
         
-        // Event listeners'ları yeniden ekle
         addMarketItemListeners();
     } catch (error) {
         console.error('Fiyat güncellenirken hata:', error);
@@ -152,7 +200,7 @@ function updatePortfolioDisplay() {
                     <span>${COIN_NAMES[coin]} (${coin})</span>
                     <div class="text-end">
                         <div>${amount.toFixed(8)}</div>
-                        <div>${value.toFixed(2)} USD</div>
+                        <div>${formatCurrency(value)} USD</div>
                     </div>
                 </div>
             `;
@@ -161,7 +209,6 @@ function updatePortfolioDisplay() {
     
     portfolio.innerHTML = portfolioHTML || '<div class="p-3 text-center">Henüz coin almadınız.</div>';
     
-    // Event listeners'ları yeniden ekle
     addPortfolioItemListeners();
 }
 
@@ -322,19 +369,17 @@ buyForm.addEventListener('submit', async (e) => {
         return;
     }
     
-    const amount = parseFloat(e.target.querySelector('input').value);
+    const usdtAmount = parseFloat(buyUSDT.value);
+    const coinAmount = parseFloat(buyCoin.value);
     
-    if (isNaN(amount) || amount <= 0) {
+    if (isNaN(usdtAmount) || usdtAmount <= 0) {
         Swal.fire({
             icon: 'error',
             title: 'Geçersiz Miktar',
-            text: 'Lütfen geçerli bir miktar girin.'
+            text: 'Lütfen geçerli bir USDT miktarı girin.'
         });
         return;
     }
-    
-    const price = currentPrice[selectedCoin];
-    const totalCost = amount * price;
     
     const db = firebase.firestore();
     const userRef = db.collection('users').doc(currentUser.uid);
@@ -343,13 +388,14 @@ buyForm.addEventListener('submit', async (e) => {
         await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
             const userData = userDoc.data();
+            const currentBalance = parseFloat(userData.balance);
             
-            if (userData.balance < totalCost) {
+            if (currentBalance < usdtAmount) {
                 throw new Error('Yetersiz bakiye');
             }
             
-            const newBalance = userData.balance - totalCost;
-            const newAmount = (userData.portfolio[selectedCoin] || 0) + amount;
+            const newBalance = currentBalance - usdtAmount;
+            const newAmount = (userData.portfolio[selectedCoin] || 0) + coinAmount;
             
             transaction.update(userRef, {
                 balance: newBalance,
@@ -360,13 +406,14 @@ buyForm.addEventListener('submit', async (e) => {
         Swal.fire({
             icon: 'success',
             title: 'İşlem Başarılı',
-            text: `${amount} ${selectedCoin} başarıyla satın alındı.`,
+            text: `${coinAmount.toFixed(8)} ${selectedCoin} başarıyla satın alındı.`,
             timer: 2000,
             showConfirmButton: false
         });
         
         loadUserPortfolio();
-        e.target.reset();
+        buyUSDT.value = '';
+        buyCoin.value = '';
     } catch (error) {
         Swal.fire({
             icon: 'error',
@@ -388,28 +435,17 @@ sellForm.addEventListener('submit', async (e) => {
         return;
     }
     
-    const amount = parseFloat(e.target.querySelector('input').value);
+    const coinAmount = parseFloat(sellCoin.value);
+    const usdtAmount = parseFloat(sellUSDT.value);
     
-    if (isNaN(amount) || amount <= 0) {
+    if (isNaN(coinAmount) || coinAmount <= 0) {
         Swal.fire({
             icon: 'error',
             title: 'Geçersiz Miktar',
-            text: 'Lütfen geçerli bir miktar girin.'
+            text: 'Lütfen geçerli bir coin miktarı girin.'
         });
         return;
     }
-    
-    if (!userPortfolio[selectedCoin] || userPortfolio[selectedCoin] < amount) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Yetersiz Coin',
-            text: 'Portföyünüzde yeterli miktarda coin bulunmuyor.'
-        });
-        return;
-    }
-    
-    const price = currentPrice[selectedCoin];
-    const totalValue = amount * price;
     
     const db = firebase.firestore();
     const userRef = db.collection('users').doc(currentUser.uid);
@@ -418,9 +454,15 @@ sellForm.addEventListener('submit', async (e) => {
         await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
             const userData = userDoc.data();
+            const currentBalance = parseFloat(userData.balance);
+            const currentCoinAmount = userData.portfolio[selectedCoin] || 0;
             
-            const newBalance = userData.balance + totalValue;
-            const newAmount = userData.portfolio[selectedCoin] - amount;
+            if (currentCoinAmount < coinAmount) {
+                throw new Error('Yetersiz coin miktarı');
+            }
+            
+            const newBalance = currentBalance + usdtAmount;
+            const newAmount = currentCoinAmount - coinAmount;
             
             transaction.update(userRef, {
                 balance: newBalance,
@@ -431,13 +473,14 @@ sellForm.addEventListener('submit', async (e) => {
         Swal.fire({
             icon: 'success',
             title: 'İşlem Başarılı',
-            text: `${amount} ${selectedCoin} başarıyla satıldı.`,
+            text: `${coinAmount.toFixed(8)} ${selectedCoin} başarıyla satıldı.`,
             timer: 2000,
             showConfirmButton: false
         });
         
         loadUserPortfolio();
-        e.target.reset();
+        sellCoin.value = '';
+        sellUSDT.value = '';
     } catch (error) {
         Swal.fire({
             icon: 'error',
