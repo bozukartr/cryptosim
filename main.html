@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoSimulator - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="dark-theme">
+    <!-- Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-currency-bitcoin"></i>
+                CryptoSimulator
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="me-4">
+                    <i class="bi bi-wallet2 text-warning me-2"></i>
+                    <span id="userBalance" class="text-light">100,000 USD</span>
+                </div>
+                <div id="userProfile" class="d-none d-flex align-items-center">
+                    <img id="userPhoto" class="rounded-circle mx-2" width="32" height="32">
+                    <span id="userName" class="text-light me-3"></span>
+                    <button id="logoutBtn" class="btn btn-outline-danger">
+                        <i class="bi bi-box-arrow-right"> Çıkış Yap</i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Market Overview -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-graph-up-arrow me-2"></i>
+                        Piyasa Özeti
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="marketOverview" class="market-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trading View -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-graph-up me-2"></i>
+                        <span id="selectedCoinTitle">Grafik</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="tradingChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Order Form -->
+                <div class="card mt-3">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-currency-exchange me-2"></i>
+                        İşlem Yap
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5><i class="bi bi-arrow-down-circle text-success me-2"></i>Alış</h5>
+                                <form id="buyForm">
+                                    <div class="mb-3">
+                                        <div class="input-group mb-2">
+                                            <input type="number" class="form-control" id="buyUSDT" placeholder="USDT Miktarı">
+                                            <span class="input-group-text">USDT</span>
+                                        </div>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="buyCoin" placeholder="Coin Miktarı">
+                                            <span class="input-group-text coin-symbol">BTC</span>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="bi bi-cart-plus me-2"></i>Satın Al
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="col-md-6">
+                                <h5><i class="bi bi-arrow-up-circle text-danger me-2"></i>Satış</h5>
+                                <form id="sellForm">
+                                    <div class="mb-3">
+                                        <div class="input-group mb-2">
+                                            <input type="number" class="form-control" id="sellCoin" placeholder="Coin Miktarı">
+                                            <span class="input-group-text coin-symbol">BTC</span>
+                                        </div>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="sellUSDT" placeholder="USDT Miktarı">
+                                            <span class="input-group-text">USDT</span>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-danger w-100">
+                                        <i class="bi bi-cart-dash me-2"></i>Sat
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-wallet2 me-2"></i>
+                        Portföyüm
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="portfolio" class="portfolio-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 

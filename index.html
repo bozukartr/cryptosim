@@ -1,1 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoSimulator - Giriş</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="config.js"></script>
+</head>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="loading-content">
+            <div class="loader"></div>
+            <p class="loader-text">Yönlendiriliyorsunuz...</p>
+        </div>
+        
+        <div class="login-content">
+            <h1 class="auth-logo">CryptoSimulator</h1>
+            <p class="auth-description">Kripto para alım satımını risk almadan deneyimleyin.</p>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <i class="bi bi-wallet2"></i>
+                    <h3>100.000 USD</h3>
+                    <p>Başlangıç bakiyesi ile gerçek piyasada işlem yapın</p>
+                </div>
+                <div class="feature-card">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <h3>Canlı Veriler</h3>
+                    <p>Gerçek zamanlı kripto fiyatları</p>
+                </div>
+                <div class="feature-card">
+                    <i class="bi bi-shield-check"></i>
+                    <h3>Risksiz Deneyim</h3>
+                    <p>Gerçek para kullanmadan trading deneyimi kazanın</p>
+                </div>
+                <div class="feature-card">
+                    <i class="bi bi-clock-history"></i>
+                    <h3>7/24 İşlem</h3>
+                    <p>Dilediğiniz zaman alım satım yapabilirsiniz</p>
+                </div>
+            </div>
 
+            <button id="loginBtn" class="auth-btn">
+                <i class="bi bi-google"></i>
+                Google ile Giriş Yap
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let redirected = false;
+        const loadingContent = document.querySelector('.loading-content');
+        const loginContent = document.querySelector('.login-content');
+
+        // Firebase oturum kontrolü
+        firebase.auth().onAuthStateChanged(user => {
+            if (!redirected) {
+                redirected = true;
+                if (user) {
+                    setTimeout(() => {
+                        window.location.replace('main.html');
+                    }, 2000);
+                } else {
+                    // Oturum yoksa giriş içeriğini göster
+                    loadingContent.style.display = 'none';
+                    loginContent.style.display = 'block';
+                }
+            }
+        });
+
+        // Zaman aşımı kontrolü
+        setTimeout(() => {
+            if (!redirected) {
+                redirected = true;
+                loadingContent.style.display = 'none';
+                loginContent.style.display = 'block';
+            }
+        }, 5000);
+    </script>
+    <script src="login.js"></script>
+</body>
+</html> 
