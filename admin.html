@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoSimulator - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="config.js"></script>
+</head>
+<body class="dark-theme">
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-shield-lock"></i>
+                Admin Panel
+            </a>
+            <div class="d-flex align-items-center">
+                <span id="adminName" class="text-light me-3"></span>
+                <a href="main.html" class="btn btn-outline-light me-2">
+                    <i class="bi bi-house"></i> Ana Sayfa
+                </a>
+                <button id="logoutBtn" class="btn btn-outline-danger">
+                    <i class="bi bi-box-arrow-right"></i> Çıkış
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Ana İçerik -->
+    <div class="container mt-4">
+        <div class="row">
+            <!-- Sol Menü -->
+            <div class="col-md-3">
+                <div class="admin-card mb-4">
+                    <div class="admin-card-header">
+                        <i class="bi bi-gear-fill me-2"></i>
+                        Yönetim Menüsü
+                    </div>
+                    <div class="admin-card-body p-0">
+                        <div class="list-group list-group-flush">
+                            <button class="list-group-item list-group-item-action active" data-bs-toggle="list" href="#users">
+                                <i class="bi bi-people me-2"></i>
+                                Kullanıcılar
+                            </button>
+                            <button class="list-group-item list-group-item-action" data-bs-toggle="list" href="#stats">
+                                <i class="bi bi-graph-up me-2"></i>
+                                İstatistikler
+                            </button>
+                            <button class="list-group-item list-group-item-action" data-bs-toggle="list" href="#actions">
+                                <i class="bi bi-tools me-2"></i>
+                                Toplu İşlemler
+                            </button>
+                            <button class="list-group-item list-group-item-action" data-bs-toggle="list" href="#logs">
+                                <i class="bi bi-journal-text me-2"></i>
+                                İşlem Geçmişi
+                            </button>
+                            <button class="list-group-item list-group-item-action" data-bs-toggle="list" href="#api">
+                                <i class="bi bi-hdd-network me-2"></i>
+                                API Kontrol
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sağ İçerik -->
+            <div class="col-md-9">
+                <div class="tab-content">
+                    <!-- Kullanıcılar -->
+                    <div class="tab-pane fade show active" id="users">
+                        <div class="admin-card">
+                            <div class="admin-card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-people-fill me-2"></i>
+                                    Kullanıcı Listesi
+                                </div>
+                                <input type="text" id="searchUser" class="admin-search" placeholder="Kullanıcı ara...">
+                            </div>
+                            <div class="admin-card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="admin-table table table-dark table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Kullanıcı Adı</th>
+                                                <th>Email</th>
+                                                <th>Bakiye</th>
+                                                <th>Son Giriş</th>
+                                                <th>Durum</th>
+                                                <th>İşlemler</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="userList">
+                                            <tr>
+                                                <td colspan="6" class="text-center">Yükleniyor...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- İstatistikler -->
+                    <div class="tab-pane fade" id="stats">
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card bg-primary text-white">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-people"></i> Toplam Kullanıcı</h5>
+                                        <h3 id="totalUsers">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-person-check"></i> Aktif Kullanıcı</h5>
+                                        <h3 id="activeUsers">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-currency-exchange"></i> Toplam İşlem</h5>
+                                        <h3 id="totalTransactions">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white">
+                                    <div class="card-body">
+                                        <h5><i class="bi bi-wallet2"></i> Toplam Bakiye</h5>
+                                        <h3 id="totalBalance">0 USD</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="admin-card mt-4">
+                            <div class="admin-card-header">
+                                <i class="bi bi-trophy me-2"></i>
+                                En Yüksek Bakiyeli Kullanıcılar
+                            </div>
+                            <div class="admin-card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="admin-table table table-dark table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Sıra</th>
+                                                <th>Kullanıcı</th>
+                                                <th>Email</th>
+                                                <th>Bakiye</th>
+                                                <th>Son Giriş</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="topUsersList">
+                                            <tr>
+                                                <td colspan="5" class="text-center">Yükleniyor...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Toplu İşlemler -->
+                    <div class="tab-pane fade" id="actions">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <i class="bi bi-tools me-2"></i>
+                                Toplu İşlemler
+                            </div>
+                            <div class="admin-card-body">
+                                <div class="d-grid gap-3">
+                                    <button id="resetAllBtn" class="btn btn-warning admin-btn">
+                                        <i class="bi bi-arrow-clockwise me-2"></i>
+                                        Tüm Bakiyeleri Sıfırla (100,000 USD)
+                                    </button>
+                                    <button id="deleteInactiveBtn" class="btn btn-danger admin-btn">
+                                        <i class="bi bi-trash me-2"></i>
+                                        İnaktif Kullanıcıları Sil (30+ Gün)
+                                    </button>
+                                    <button id="clearPortfoliosBtn" class="btn btn-warning admin-btn">
+                                        <i class="bi bi-x-circle me-2"></i>
+                                        Tüm Portföyleri Temizle
+                                    </button>
+                                    <button id="backupDataBtn" class="btn btn-info admin-btn">
+                                        <i class="bi bi-download me-2"></i>
+                                        Veritabanı Yedeği Al
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- İşlem Geçmişi -->
+                    <div class="tab-pane fade" id="logs">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <i class="bi bi-journal-text me-2"></i>
+                                Son İşlemler
+                            </div>
+                            <div class="admin-card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="admin-table table table-dark table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Tarih</th>
+                                                <th>Kullanıcı</th>
+                                                <th>İşlem</th>
+                                                <th>Miktar</th>
+                                                <th>Durum</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="transactionList">
+                                            <tr>
+                                                <td colspan="5" class="text-center">Yükleniyor...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- API Kontrol -->
+                    <div class="tab-pane fade" id="api">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <i class="bi bi-hdd-network me-2"></i>
+                                API Ayarları
+                            </div>
+                            <div class="admin-card-body">
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <i class="bi bi-gear"></i> Sistem Yönetimi
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="d-grid gap-2">
+                                                    <button id="resetAllBtn" class="btn btn-warning">
+                                                        <i class="bi bi-arrow-clockwise"></i> Tüm Bakiyeleri Sıfırla
+                                                    </button>
+                                                    <button id="deleteInactiveBtn" class="btn btn-danger">
+                                                        <i class="bi bi-person-x"></i> İnaktif Kullanıcıları Sil
+                                                    </button>
+                                                    <button id="clearPortfoliosBtn" class="btn btn-info">
+                                                        <i class="bi bi-trash"></i> Tüm Portföyleri Temizle
+                                                    </button>
+                                                    <button id="backupDataBtn" class="btn btn-success">
+                                                        <i class="bi bi-download"></i> Veritabanı Yedeği Al
+                                                    </button>
+                                                    <button id="maintenanceModeBtn" class="btn btn-secondary">
+                                                        <i class="bi bi-tools"></i> Bakım Modu
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <i class="bi bi-shield-lock"></i> Yetki Yönetimi
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Admin E-posta Ekle</label>
+                                                    <div class="input-group">
+                                                        <input type="email" id="newAdminEmail" class="form-control" placeholder="admin@example.com">
+                                                        <button id="addAdminBtn" class="btn btn-primary">Ekle</button>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Mevcut Adminler</label>
+                                                    <div id="adminList" class="list-group">
+                                                        <!-- Admin listesi buraya gelecek -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- API Ayarları -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <i class="bi bi-sliders"></i> API Ayarları
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Fiyat Güncelleme Aralığı (ms)</label>
+                                                    <input type="number" id="priceUpdateInterval" class="form-control" min="1000">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Grafik Güncelleme Aralığı (ms)</label>
+                                                    <input type="number" id="chartUpdateInterval" class="form-control" min="1000">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Dakika Başına Maksimum İstek</label>
+                                                    <input type="number" id="maxRequestsPerMinute" class="form-control" min="1">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">İstek Aralığı (ms)</label>
+                                                    <input type="number" id="requestInterval" class="form-control" min="100">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="text-end">
+                                            <button id="resetApiSettings" class="btn btn-secondary">Varsayılana Döndür</button>
+                                            <button id="saveApiSettings" class="btn btn-primary">Kaydet</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- API Durumu -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <i class="bi bi-activity"></i> API Durumu
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-dark table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Endpoint</th>
+                                                        <th>Son İstek</th>
+                                                        <th>Başarı Oranı</th>
+                                                        <th>Ort. Yanıt Süresi</th>
+                                                        <th>Durum</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="apiStatusList">
+                                                    <!-- API durumu buraya gelecek -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Kullanıcı Listesi -->
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-people"></i> Kullanıcı Listesi
+                                        </div>
+                                        <div class="input-group" style="width: 300px;">
+                                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                            <input type="text" id="searchUser" class="form-control" placeholder="Kullanıcı ara...">
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-dark table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Kullanıcı</th>
+                                                        <th>E-posta</th>
+                                                        <th>Bakiye</th>
+                                                        <th>Son Giriş</th>
+                                                        <th>Durum</th>
+                                                        <th>İşlemler</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="userList">
+                                                    <!-- Kullanıcı listesi buraya gelecek -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- İşlem Geçmişi -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <i class="bi bi-clock-history"></i> İşlem Geçmişi
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-dark table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Tarih</th>
+                                                        <th>Kullanıcı</th>
+                                                        <th>İşlem</th>
+                                                        <th>Miktar</th>
+                                                        <th>Durum</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="transactionList">
+                                                    <!-- İşlem geçmişi buraya gelecek -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html> 

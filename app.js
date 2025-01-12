@@ -73,6 +73,16 @@ const sellUSDT = document.getElementById('sellUSDT');
 const sellCoin = document.getElementById('sellCoin');
 const coinSymbolElements = document.querySelectorAll('.coin-symbol');
 
+// Input alanlarına sayı klavyesi özelliği ekle
+buyUSDT.setAttribute('inputmode', 'numeric');
+buyUSDT.setAttribute('pattern', '[0-9]*');
+buyCoin.setAttribute('inputmode', 'numeric');
+buyCoin.setAttribute('pattern', '[0-9]*');
+sellUSDT.setAttribute('inputmode', 'numeric');
+sellUSDT.setAttribute('pattern', '[0-9]*');
+sellCoin.setAttribute('inputmode', 'numeric');
+sellCoin.setAttribute('pattern', '[0-9]*');
+
 // Para formatı için yardımcı fonksiyon
 function formatCurrency(number) {
     return number.toLocaleString('tr-TR', {
@@ -190,17 +200,29 @@ function updatePortfolioDisplay() {
     let portfolioHTML = '';
     let totalValue = 0;
     
-    for (const [coin, amount] of Object.entries(userPortfolio)) {
-        if (amount > 0) {
-            const value = amount * (currentPrices[coin] || 0);
+    for (const [coin, data] of Object.entries(userPortfolio)) {
+        if (data.amount > 0) {
+            const currentPrice = currentPrices[coin] || 0;
+            const value = data.amount * currentPrice;
             totalValue += value;
+            
+            // Kâr/zarar durumunu hesapla
+            const priceChange = ((currentPrice - data.avgPrice) / data.avgPrice) * 100;
+            const profitLossIcon = priceChange >= 0 ? 
+                '<i class="bi bi-arrow-up-circle-fill text-success"></i>' : 
+                '<i class="bi bi-arrow-down-circle-fill text-danger"></i>';
+            const profitLossClass = priceChange >= 0 ? 'text-success' : 'text-danger';
             
             portfolioHTML += `
                 <div class="crypto-item ${coin === selectedCoin ? 'active' : ''}" data-symbol="${coin}" data-pair="${coin}USDT">
-                    <span>${COIN_NAMES[coin]} (${coin})</span>
+                    <div class="d-flex align-items-center">
+                        ${profitLossIcon}
+                        <span class="ms-2">${COIN_NAMES[coin]} (${coin})</span>
+                    </div>
                     <div class="text-end">
-                        <div>${amount.toFixed(8)}</div>
+                        <div>${data.amount.toFixed(8)}</div>
                         <div>${formatCurrency(value)} USD</div>
+                        <small class="${profitLossClass}">${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(2)}%</small>
                     </div>
                 </div>
             `;
@@ -260,7 +282,33 @@ function selectCoin(symbol, pair) {
 // Grafik verilerini al
 async function getChartData(symbol = 'BTCUSDT', interval = '1h', limit = 24) {
     try {
-        const response = await fetch(`${BINANCE_API}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        // Zaman aralığına göre limit ve interval ayarla
+        let adjustedInterval;
+        let adjustedLimit;
+        
+        switch(interval) {
+            case '1d': // 24 saat
+                adjustedInterval = '1h';
+                adjustedLimit = 24;
+                break;
+            case '7d': // 7 gün
+                adjustedInterval = '4h';
+                adjustedLimit = 42;
+                break;
+            case '1M': // 1 ay
+                adjustedInterval = '1d';
+                adjustedLimit = 30;
+                break;
+            case '3M': // 3 ay
+                adjustedInterval = '1d';
+                adjustedLimit = 90;
+                break;
+            default:
+                adjustedInterval = '1h';
+                adjustedLimit = 24;
+        }
+
+        const response = await fetch(`${BINANCE_API}/klines?symbol=${symbol}&interval=${adjustedInterval}&limit=${adjustedLimit}`);
         const data = await response.json();
         return data.map(d => [d[0], parseFloat(d[4])]); // Zaman ve kapanış fiyatı
     } catch (error) {
@@ -270,9 +318,9 @@ async function getChartData(symbol = 'BTCUSDT', interval = '1h', limit = 24) {
 }
 
 // Grafik oluşturma
-async function createChart(pair = 'BTCUSDT') {
+async function createChart(pair = 'BTCUSDT', interval = '1d') {
     try {
-        const chartData = await getChartData(pair);
+        const chartData = await getChartData(pair, interval);
         
         // Veri kontrolü
         if (!chartData || chartData.length === 0) {
@@ -291,7 +339,12 @@ async function createChart(pair = 'BTCUSDT') {
             data: {
                 labels: chartData.map(d => {
                     const date = new Date(d[0]);
-                    return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                    // Zaman aralığına göre format ayarla
+                    if (interval === '1d') {
+                        return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                    } else {
+                        return date.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+                    }
                 }),
                 datasets: [{
                     label: `${selectedCoin} / USD`,
@@ -395,11 +448,21 @@ buyForm.addEventListener('submit', async (e) => {
             }
             
             const newBalance = currentBalance - usdtAmount;
-            const newAmount = (userData.portfolio[selectedCoin] || 0) + coinAmount;
+            const currentPortfolio = userData.portfolio || {};
+            const currentHolding = currentPortfolio[selectedCoin] || { amount: 0, avgPrice: 0 };
+            
+            // Yeni ortalama alış fiyatını hesapla
+            const totalOldValue = currentHolding.amount * currentHolding.avgPrice;
+            const totalNewValue = usdtAmount;
+            const totalNewAmount = currentHolding.amount + coinAmount;
+            const newAvgPrice = (totalOldValue + totalNewValue) / totalNewAmount;
             
             transaction.update(userRef, {
                 balance: newBalance,
-                [`portfolio.${selectedCoin}`]: newAmount
+                [`portfolio.${selectedCoin}`]: {
+                    amount: totalNewAmount,
+                    avgPrice: newAvgPrice
+                }
             });
         });
         
@@ -455,19 +518,29 @@ sellForm.addEventListener('submit', async (e) => {
             const userDoc = await transaction.get(userRef);
             const userData = userDoc.data();
             const currentBalance = parseFloat(userData.balance);
-            const currentCoinAmount = userData.portfolio[selectedCoin] || 0;
+            const portfolio = userData.portfolio || {};
+            const holding = portfolio[selectedCoin] || { amount: 0, avgPrice: 0 };
             
-            if (currentCoinAmount < coinAmount) {
+            if (holding.amount < coinAmount) {
                 throw new Error('Yetersiz coin miktarı');
             }
             
             const newBalance = currentBalance + usdtAmount;
-            const newAmount = currentCoinAmount - coinAmount;
+            const newAmount = holding.amount - coinAmount;
             
-            transaction.update(userRef, {
-                balance: newBalance,
-                [`portfolio.${selectedCoin}`]: newAmount
-            });
+            // Eğer tüm coinler satıldıysa, portföyden kaldır
+            if (newAmount === 0) {
+                transaction.update(userRef, {
+                    balance: newBalance,
+                    [`portfolio.${selectedCoin}`]: firebase.firestore.FieldValue.delete()
+                });
+            } else {
+                // Miktarı güncelle, ortalama fiyat aynı kalır
+                transaction.update(userRef, {
+                    balance: newBalance,
+                    [`portfolio.${selectedCoin}.amount`]: newAmount
+                });
+            }
         });
         
         Swal.fire({
@@ -510,7 +583,7 @@ logoutBtn.addEventListener('click', () => {
 });
 
 // Oturum kontrolü
-firebase.auth().onAuthStateChanged(user => {
+firebase.auth().onAuthStateChanged(async user => {
     if (!user) {
         window.location.href = 'index.html';
         return;
@@ -520,6 +593,32 @@ firebase.auth().onAuthStateChanged(user => {
     userProfile.classList.remove('d-none');
     userPhoto.src = user.photoURL;
     userName.textContent = user.displayName;
+    
+    // Firestore'a kullanıcı bilgilerini kaydet/güncelle
+    const db = firebase.firestore();
+    const userRef = db.collection('users').doc(user.uid);
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+        // Yeni kullanıcı ise
+        await userRef.set({
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+            balance: 100000,
+            portfolio: {},
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } else {
+        // Mevcut kullanıcı ise son giriş zamanını ve diğer bilgileri güncelle
+        await userRef.update({
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+    
     loadUserPortfolio();
 });
 
@@ -528,6 +627,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // İlk veri yüklemesi
     updatePrices();
     createChart();
+    
+    // Zaman aralığı butonlarına tıklama olayı ekle
+    const intervalButtons = document.querySelectorAll('[data-interval]');
+    intervalButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Aktif butonu güncelle
+            intervalButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            // Grafiği seçilen zaman aralığına göre güncelle
+            createChart(selectedPair, button.dataset.interval);
+        });
+    });
     
     // 5 saniyede bir fiyatları güncelle
     setInterval(updatePrices, 5000);
