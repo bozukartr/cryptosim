@@ -632,16 +632,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const intervalButtons = document.querySelectorAll('[data-interval]');
     intervalButtons.forEach(button => {
         button.addEventListener('click', () => {
-            // Aktif butonu güncelle
             intervalButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            // Grafiği seçilen zaman aralığına göre güncelle
             createChart(selectedPair, button.dataset.interval);
         });
     });
     
-    // 5 saniyede bir fiyatları güncelle
-    setInterval(updatePrices, 5000);
+    // 5 saniyede bir fiyatları güncelle ve analiz yap
+    setInterval(() => {
+        updatePrices();
+        analyzeCoinMovements();
+    }, 5000);
 });
 
 // Input event listeners
@@ -703,4 +704,407 @@ portfolio.addEventListener('click', async (e) => {
         // ... mevcut kod ...
         updateCoinSymbol(); // Coin sembolünü güncelle
     }
-}); 
+});
+
+// Coin analizi için gerekli değişkenler
+let lastPrices = {};
+let priceHistory = {};
+let volumeHistory = {};
+
+// Coin analizi yapan fonksiyon
+async function analyzeCoinMovements() {
+    try {
+        if (!currentPrices || Object.keys(currentPrices).length === 0) {
+            console.log('Fiyat verisi henüz yüklenmedi, analiz bekleniyor...');
+            return;
+        }
+
+        const coins = Object.keys(currentPrices);
+        let bestCoin = null;
+        let maxScore = -Infinity;
+        
+        // Fiyat geçmişini güncelle
+        for (const coin of coins) {
+            if (!priceHistory[coin]) {
+                priceHistory[coin] = [];
+            }
+            
+            // Her zaman son fiyatı ekle (5 saniyelik güncelleme)
+            const lastPrice = currentPrices[coin];
+            priceHistory[coin].push(lastPrice);
+            
+            // Son 24 veri noktasını tut (2 dakikalık veri)
+            if (priceHistory[coin].length > 24) {
+                priceHistory[coin] = priceHistory[coin].slice(-24);
+            }
+            
+            // En az 3 veri noktası varsa analiz yap
+            if (priceHistory[coin].length >= 3) {
+                const score = calculateAnalysisScore(coin);
+                if (score > maxScore) {
+                    maxScore = score;
+                    bestCoin = coin;
+                }
+            }
+        }
+        
+        if (!bestCoin) {
+            console.log('Veri toplama devam ediyor...');
+            return;
+        }
+        
+        updateAnalysisDisplay(bestCoin);
+    } catch (error) {
+        console.error('Analiz hatası:', error);
+        const recommendedCoinElement = document.getElementById('recommendedCoin');
+        if (recommendedCoinElement) {
+            recommendedCoinElement.textContent = 'Analiz hatası';
+        }
+    }
+}
+
+// Analiz puanı hesaplama
+function calculateAnalysisScore(coin) {
+    const prices = priceHistory[coin];
+    if (prices.length < 3) return 0; // En az 3 veri noktası gerekli
+    
+    let score = 0;
+    
+    // 1. Trend Analizi (Ağırlık: 30%)
+    const trend = calculateTrendScore(prices);
+    score += trend * 30;
+    
+    // 2. Momentum ve RSI Analizi (Ağırlık: 30%)
+    const momentum = calculateMomentumScore(prices);
+    score += momentum * 30;
+    
+    // 3. Volatilite ve Hacim Analizi (Ağırlık: 40%)
+    const stability = calculateStabilityScore(prices);
+    score += stability * 40;
+    
+    return score;
+}
+
+// Trend Skoru Hesaplama
+function calculateTrendScore(prices) {
+    let score = 0;
+    const pricesCopy = [...prices]; // Fiyat verisinin kopyasını kullan
+    
+    // Son 24 saat değişim (veya mevcut en uzun periyot)
+    const dailyChange = (pricesCopy[pricesCopy.length - 1] - pricesCopy[0]) / pricesCopy[0];
+    
+    // Son 4 saat değişim (veya son 5 veri noktası)
+    const recentPrices = pricesCopy.slice(-5);
+    const recentChange = (recentPrices[recentPrices.length - 1] - recentPrices[0]) / recentPrices[0];
+    
+    // Hareketli ortalamalar
+    const ma4h = recentPrices.reduce((a, b) => a + b, 0) / recentPrices.length;
+    const ma24h = pricesCopy.reduce((a, b) => a + b, 0) / pricesCopy.length;
+    
+    // Trend puanlaması (daha hassas)
+    score += dailyChange > 0.001 ? 0.4 : dailyChange < -0.001 ? -0.4 : 0;  // 24s trend
+    score += recentChange > 0.0005 ? 0.3 : recentChange < -0.0005 ? -0.3 : 0;  // 4s trend
+    score += ma4h > ma24h * 1.001 ? 0.3 : ma4h < ma24h * 0.999 ? -0.3 : 0;  // MA karşılaştırma
+    
+    return Math.max(-1, Math.min(1, score));
+}
+
+// Momentum Skoru Hesaplama
+function calculateMomentumScore(prices) {
+    let score = 0;
+    const pricesCopy = [...prices]; // Fiyat verisinin kopyasını kullan
+    
+    // RSI hesapla (son 14 veri noktası veya mevcut tüm veri)
+    const rsiPeriod = Math.min(14, pricesCopy.length);
+    const rsi = calculateRSI(pricesCopy.slice(-rsiPeriod));
+    
+    // Momentum (son 5 veri noktası)
+    const recentPrices = pricesCopy.slice(-5);
+    const momentum = (recentPrices[recentPrices.length - 1] - recentPrices[0]) / recentPrices[0];
+    
+    // RSI bazlı puanlama (daha hassas)
+    if (rsi < 30) score += 0.5;
+    else if (rsi > 70) score -= 0.5;
+    else if (rsi < 45) score += 0.2;
+    else if (rsi > 55) score -= 0.2;
+    else score += 0.1; // Nötr bölge
+    
+    // Momentum bazlı puanlama (daha hassas)
+    score += momentum > 0.001 ? 0.3 : momentum < -0.001 ? -0.3 : 0;
+    
+    return Math.max(-1, Math.min(1, score));
+}
+
+// Stabilite Skoru Hesaplama
+function calculateStabilityScore(prices) {
+    let score = 0;
+    const pricesCopy = [...prices]; // Fiyat verisinin kopyasını kullan
+    
+    // Volatilite hesapla
+    const volatility = calculateVolatility(pricesCopy);
+    
+    // Fiyat stabilitesi (daha hassas)
+    const priceStability = Math.max(0, 1 - (volatility * 100));
+    
+    // Ani değişim kontrolü (son 3 veri noktası)
+    const recentChanges = [];
+    for (let i = pricesCopy.length - 3; i < pricesCopy.length; i++) {
+        if (i > 0) {
+            recentChanges.push(Math.abs((pricesCopy[i] - pricesCopy[i-1]) / pricesCopy[i-1]));
+        }
+    }
+    const maxChange = Math.max(...recentChanges, 0);
+    
+    // Stabilite puanlaması (daha hassas)
+    score += (priceStability / 100) * 0.6;
+    score += maxChange < 0.001 ? 0.4 : maxChange < 0.005 ? 0.2 : -0.4;
+    
+    return Math.max(-1, Math.min(1, score));
+}
+
+// Analiz sonuçlarını görüntüleme
+function updateAnalysisDisplay(coin) {
+    const recommendedCoinElement = document.getElementById('recommendedCoin');
+    const analysisPointsElement = document.getElementById('analysisPoints');
+    
+    if (!coin) {
+        recommendedCoinElement.textContent = 'Yeterli veri yok';
+        return;
+    }
+    
+    recommendedCoinElement.textContent = `${COIN_NAMES[coin]} (${coin})`;
+    
+    const prices = priceHistory[coin];
+    const trendScore = calculateTrendScore(prices);
+    const momentumScore = calculateMomentumScore(prices);
+    const stabilityScore = calculateStabilityScore(prices);
+    const rsi = calculateRSI(prices.slice(-14));
+    
+    const totalScore = (trendScore * 30 + momentumScore * 30 + stabilityScore * 40) / 100;
+    const scorePercentage = ((totalScore + 1) / 2 * 100).toFixed(1); // -1 to 1 -> 0 to 100
+    
+    const analysisPoints = [
+        generateOverallAnalysis(coin, scorePercentage, totalScore),
+        generateDetailedAnalysis(trendScore, momentumScore, stabilityScore, rsi),
+        generateFinalRecommendation(totalScore, rsi)
+    ];
+    
+    analysisPointsElement.innerHTML = analysisPoints
+        .map(point => `
+            <div class="analysis-point mb-2">
+                <i class="fas fa-circle text-warning me-2"></i>
+                <span>${point}</span>
+            </div>
+        `).join('');
+}
+
+// Genel Analiz Oluşturma
+function generateOverallAnalysis(coin, scorePercentage, totalScore) {
+    const sentiment = totalScore > 0.3 ? 'Çok Pozitif' :
+                     totalScore > 0 ? 'Pozitif' :
+                     totalScore > -0.3 ? 'Nötr' : 'Negatif';
+                     
+    return `Genel Görünüm: ${COIN_NAMES[coin]} için analiz puanı %${scorePercentage} (${sentiment})`;
+}
+
+// Detaylı Analiz Oluşturma
+function generateDetailedAnalysis(trendScore, momentumScore, stabilityScore, rsi) {
+    const trendText = trendScore > 0 ? 'Yükseliş' : 'Düşüş';
+    const stabilityText = stabilityScore > 0 ? 'Stabil' : 'Volatil';
+    
+    return `Teknik Veriler: Trend: ${trendText} (${(trendScore * 100).toFixed(1)}%), ` +
+           `Stabilite: ${stabilityText} (${(stabilityScore * 100).toFixed(1)}%), RSI: ${rsi}`;
+}
+
+// Final Tavsiye Oluşturma
+function generateFinalRecommendation(totalScore, rsi) {
+    let recommendation = '';
+    let risk = '';
+    
+    if (totalScore > 0.5 && rsi < 70) {
+        recommendation = 'GÜÇLÜ ALIM';
+        risk = 'Düşük';
+    } else if (totalScore > 0.2 && rsi < 65) {
+        recommendation = 'Kontrollü Alım';
+        risk = 'Orta';
+    } else if (totalScore < -0.5 || rsi > 75) {
+        recommendation = 'Satış Pozisyonu';
+        risk = 'Düşük';
+    } else {
+        recommendation = 'Bekle ve İzle';
+        risk = 'Yüksek';
+    }
+    
+    return `Aksiyon: ${recommendation} (Risk: ${risk})`;
+}
+
+// Analizi yenileme fonksiyonu
+function refreshAnalysis() {
+    const recommendedCoinElement = document.getElementById('recommendedCoin');
+    if (recommendedCoinElement) {
+        recommendedCoinElement.textContent = 'Analiz ediliyor...';
+    }
+    
+    // Mevcut fiyatları kullanarak hemen analiz yap
+    if (Object.keys(currentPrices).length > 0) {
+        analyzeCoinMovements();
+    } else {
+        updatePrices().then(() => analyzeCoinMovements());
+    }
+}
+
+// Fiyat güncellemelerinde analizi çalıştır
+setInterval(analyzeCoinMovements, 300000); // Her dakika analiz et 
+
+// RSI (Göreceli Güç Endeksi) hesaplama
+function calculateRSI(prices) {
+    if (prices.length < 2) return 50; // Yeterli veri yoksa nötr değer döndür
+    
+    let gains = 0;
+    let losses = 0;
+    let avgGain = 0;
+    let avgLoss = 0;
+    
+    // İlk değerleri hesapla
+    for (let i = 1; i < prices.length; i++) {
+        const difference = prices[i] - prices[i-1];
+        if (difference >= 0) {
+            gains += difference;
+        } else {
+            losses -= difference;
+        }
+    }
+    
+    // Ortalama kazanç ve kayıpları hesapla
+    avgGain = gains / (prices.length - 1);
+    avgLoss = losses / (prices.length - 1);
+    
+    // RSI hesapla
+    if (avgLoss === 0) return 100;
+    if (avgGain === 0) return 0;
+    
+    const RS = avgGain / avgLoss;
+    const RSI = 100 - (100 / (1 + RS));
+    
+    return parseFloat(RSI.toFixed(2));
+}
+
+// Volatilite hesaplama
+function calculateVolatility(prices) {
+    if (prices.length < 2) return 0;
+    
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+        returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+    }
+    
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+    
+    return Math.sqrt(variance);
+}
+
+// Çerez Yönetimi
+document.addEventListener('DOMContentLoaded', () => {
+    // Çerez bildirimi elementleri
+    const cookieConsent = document.getElementById('cookieConsent');
+    const cookieAccept = document.getElementById('cookieAccept');
+    const cookieSettings = document.getElementById('cookieSettings');
+    const saveCookieSettings = document.getElementById('saveCookieSettings');
+    const cookieSettingsModal = new bootstrap.Modal(document.getElementById('cookieSettingsModal'));
+    
+    // Çerez tercihleri kontrol edilir
+    const checkCookieConsent = () => {
+        const consent = localStorage.getItem('cookieConsent');
+        if (!consent) {
+            setTimeout(() => {
+                cookieConsent.classList.add('show');
+            }, 1000);
+        }
+    };
+    
+    // Çerez tercihlerini kaydet
+    const saveCookiePreferences = (preferences) => {
+        localStorage.setItem('cookieConsent', 'true');
+        localStorage.setItem('cookiePreferences', JSON.stringify(preferences));
+        cookieConsent.classList.remove('show');
+    };
+    
+    // Çerez tercihlerini yükle
+    const loadCookiePreferences = () => {
+        const preferences = localStorage.getItem('cookiePreferences');
+        if (preferences) {
+            const { preference, analytics } = JSON.parse(preferences);
+            document.getElementById('preferenceCookies').checked = preference;
+            document.getElementById('analyticsCookies').checked = analytics;
+        }
+    };
+    
+    // Event Listeners
+    cookieAccept.addEventListener('click', () => {
+        saveCookiePreferences({
+            preference: true,
+            analytics: true
+        });
+    });
+    
+    cookieSettings.addEventListener('click', () => {
+        loadCookiePreferences();
+        cookieSettingsModal.show();
+    });
+    
+    saveCookieSettings.addEventListener('click', () => {
+        const preferences = {
+            preference: document.getElementById('preferenceCookies').checked,
+            analytics: document.getElementById('analyticsCookies').checked
+        };
+        saveCookiePreferences(preferences);
+        cookieSettingsModal.hide();
+    });
+    
+    // Çerez kontrolünü başlat
+    checkCookieConsent();
+});
+
+// Çerez yardımcı fonksiyonları
+const setCookie = (name, value, days = 365) => {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = `expires=${date.toUTCString()}`;
+    document.cookie = `${name}=${value};${expires};path=/;SameSite=Lax`;
+};
+
+const getCookie = (name) => {
+    const nameEQ = `${name}=`;
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+};
+
+const deleteCookie = (name) => {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+};
+
+// Çerez kullanım örnekleri
+const saveUserPreferences = (preferences) => {
+    if (getCookie('cookieConsent') === 'true') {
+        const cookiePreferences = JSON.parse(localStorage.getItem('cookiePreferences'));
+        if (cookiePreferences.preference) {
+            setCookie('userPreferences', JSON.stringify(preferences));
+        }
+    }
+};
+
+const saveAnalytics = (data) => {
+    if (getCookie('cookieConsent') === 'true') {
+        const cookiePreferences = JSON.parse(localStorage.getItem('cookiePreferences'));
+        if (cookiePreferences.analytics) {
+            // Analytics verilerini kaydet
+            setCookie('analytics', JSON.stringify(data));
+        }
+    }
+}; 
